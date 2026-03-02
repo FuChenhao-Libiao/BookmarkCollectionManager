@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📋 生成历史 - AI 音乐生成器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #1a1a3e, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        /* 头部 */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .header h1 {
+            font-size: 24px;
+            background: linear-gradient(90deg, #a855f7, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .btn-link {
+            color: #a78bfa;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 8px 16px;
+            border: 1px solid rgba(167,139,250,0.3);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .btn-link:hover {
+            background: rgba(167,139,250,0.1);
+            border-color: #a78bfa;
+        }
+
+        /* 主内容 */
+        .main {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* 过滤栏 */
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+        .filter-tag {
+            padding: 6px 14px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .filter-tag:hover { background: rgba(168,85,247,0.15); }
+        .filter-tag.active {
+            background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(59,130,246,0.3));
+            border-color: #a855f7;
+            color: #fff;
+        }
+
+        /* 历史列表 */
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .history-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+        .history-card:hover {
+            border-color: rgba(168,85,247,0.3);
+            transform: translateY(-2px);
+        }
+
+        .card-prompt {
+            font-size: 15px;
+            font-weight: 500;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        .card-meta span {
+            background: rgba(255,255,255,0.05);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .card-audio {
+            width: 100%;
+            height: 36px;
+            margin-bottom: 10px;
+        }
+
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-sm-download {
+            background: rgba(52,211,153,0.15);
+            color: #34d399;
+        }
+        .btn-sm-download:hover { background: rgba(52,211,153,0.25); }
+        .btn-sm-delete {
+            background: rgba(239,68,68,0.1);
+            color: #f87171;
+        }
+        .btn-sm-delete:hover { background: rgba(239,68,68,0.2); }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 80px 0;
+            color: #555;
+        }
+        .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+        .empty-state p { font-size: 16px; }
+
+        /* 分页 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 32px;
+        }
+        .page-btn {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .page-btn:hover { background: rgba(168,85,247,0.15); }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .page-btn.active { background: #a855f7; color: #fff; border-color: #a855f7; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            z-index: 1000;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast.error { background: rgba(239,68,68,0.9); color: #fff; }
+        .toast.success { background: rgba(52,211,153,0.9); color: #fff; }
+
+        @media (max-width: 640px) {
+            .header { padding: 16px 20px; }
+            .main { padding: 20px 16px; }
+            .history-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <h1>📋 生成历史</h1>
+    <a href="index.html" class="btn-link">🎵 返回生成</a>
+</header>
+
+<main class="main">
+    <!-- 过滤栏 -->
+    <div class="filter-bar" id="filterBar">
+        <div class="filter-tag active" data-style="" onclick="filterByStyle(this, '')">全部</div>
+    </div>
+
+    <!-- 历史列表 -->
+    <div class="history-grid" id="historyGrid"></div>
+
+    <!-- 空状态 -->
+    <div class="empty-state" id="emptyState" style="display:none;">
+        <div class="icon">🎵</div>
+        <p>还没有生成过音乐，去创作一首吧！</p>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination" id="pagination"></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/api.js"></script>
+<script>
+    let currentPage = 1;
+    let currentStyle = '';
+    // 风格 ID → 中文名映射表（如 "happy" → "😊 欢快"）
+    let styleMap = {};
+
+    // 离线兜底风格列表
+    const DEFAULT_STYLES = [
+        {id: "happy", name: "欢快", icon: "😊"},
+        {id: "sad", name: "悲伤", icon: "😢"},
+        {id: "epic", name: "史诗", icon: "⚔️"},
+        {id: "electronic", name: "电子", icon: "🎛️"},
+        {id: "classical", name: "古典", icon: "🎻"},
+        {id: "rock", name: "摇滚", icon: "🎸"},
+        {id: "jazz", name: "爵士", icon: "🎷"},
+        {id: "relaxing", name: "轻松", icon: "🌿"},
+        {id: "tense", name: "紧张", icon: "😰"},
+        {id: "romantic", name: "浪漫", icon: "💕"},
+    ];
+
+    async function init() {
+        await loadFilters();
+        await loadHistory();
+    }
+
+    // 加载过滤标签
+    async function loadFilters() {
+        let styles = DEFAULT_STYLES;
+        try {
+            const res = await api.getStyles();
+            if (res.data && res.data.length > 0) {
+                styles = res.data;
+            }
+        } catch (e) {
+            console.warn('从后端加载风格失败，使用本地默认列表');
+        }
+        const bar = document.getElementById('filterBar');
+        styles.forEach(s => {
+            styleMap[s.id] = `${s.icon} ${s.name}`;
+            const tag = document.createElement('div');
+            tag.className = 'filter-tag';
+            tag.dataset.style = s.id;
+            tag.textContent = `${s.icon} ${s.name}`;
+            tag.onclick = () => filterByStyle(tag, s.id);
+            bar.appendChild(tag);
+        });
+    }
+
+    // 根据风格 ID 获取中文显示名
+    function getStyleName(styleId) {
+        if (!styleId) return '自定义';
+        return styleMap[styleId] || styleId;
+    }
+
+    function filterByStyle(el, style) {
+        currentStyle = style;
+        currentPage = 1;
+        document.querySelectorAll('.filter-tag').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        loadHistory();
+    }
+
+    // 加载历史记录
+    async function loadHistory() {
+        try {
+            const res = await api.getHistory(currentPage, 12, currentStyle || null);
+            const grid = document.getElementById('historyGrid');
+            const empty = document.getElementById('emptyState');
+            const data = res.data;
+
+            if (data.items.length === 0) {
+                grid.innerHTML = '';
+                empty.style.display = 'block';
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+
+            empty.style.display = 'none';
+            grid.innerHTML = data.items.map(item => `
+                <div class="history-card" id="card-${item.id}">
+                    <div class="card-prompt">${escapeHtml(item.prompt)}</div>
+                    <div class="card-meta">
+                        <span>${getStyleName(item.style)}</span>
+                        <span>${item.duration}s</span>
+                        <span>${(item.file_size / 1024).toFixed(0)}KB</span>
+                        <span>${item.created_at}</span>
+                    </div>
+                    <audio controls class="card-audio" src="${api.getMusicUrl(item.id)}"></audio>
+                    <div class="card-actions">
+                        <button class="btn-sm btn-sm-download" onclick="downloadMusic(${item.id})">⬇️ 下载</button>
+                        <button class="btn-sm btn-sm-delete" onclick="deleteMusic(${item.id})">🗑️ 删除</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // 渲染分页
+            renderPagination(data.total, data.page, data.page_size);
+
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    function renderPagination(total, page, pageSize) {
+        const totalPages = Math.ceil(total / pageSize);
+        if (totalPages <= 1) {
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        html += `<button class="page-btn" ${page <= 1 ? 'disabled' : ''} onclick="goPage(${page - 1})">‹ 上一页</button>`;
+        for (let i = 1; i <= totalPages; i++) {
+            html += `<button class="page-btn ${i === page ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+        }
+        html += `<button class="page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="goPage(${page + 1})">下一页 ›</button>`;
+        document.getElementById('pagination').innerHTML = html;
+    }
+
+    function goPage(page) {
+        currentPage = page;
+        loadHistory();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function downloadMusic(id) {
+        const a = document.createElement('a');
+        a.href = api.getMusicUrl(id);
+        a.download = `music_${id}.wav`;
+        a.click();
+    }
+
+    async function deleteMusic(id) {
+        if (!confirm('确定删除这条记录吗？')) return;
+        try {
+            await api.deleteHistory(id);
+            document.getElementById(`card-${id}`)?.remove();
+            showToast('删除成功', 'success');
+        } catch (e) {
+            showToast(e.message, 'error');
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = `toast ${type} show`;
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    init();
+</script>
+
+</body>
+</html>
